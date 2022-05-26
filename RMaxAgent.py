@@ -1,5 +1,7 @@
 import random
 import sys
+import time
+from copy import deepcopy
 import numpy as np
 import os.path
 ##############################            Imports & Globals              #################################
@@ -16,7 +18,7 @@ policy_file_path = sys.argv[4]
 CURRENT_STATE = None
 LAST_STATE = None
 LAST_ACTION = None
-COUNTER = 0
+TIMER = time.time()
 #########################################################################################################
 ###########################            R-MAX Agent Class              #############################
 #########################################################################################################
@@ -26,10 +28,9 @@ class RMaxAgent(Executor):
     def __init__(self):
         super(RMaxAgent, self).__init__()
 
-
         #self.actions_list, self.states_list, self.actions_idx, self.states_idx = [], [], {}, {}
         self.action_options = ["south", "north", "west", "east"]
-        self.actions_options_dict, self.actions_count_dict, self.topologic_graph = {}, {}, {}
+        self.actions_options_dict, self.actions_count_dict, self.topologic_graph, self.actions_probability = {}, {}, {}, {}
 
     def initialize(self, services):
         self.services = services
@@ -39,7 +40,10 @@ class RMaxAgent(Executor):
 
     ##########################              Run Agent Run!                  #################################
     def next_action(self):
-        global LAST_ACTION, LAST_STATE, COUNTER, CURRENT_STATE
+        global LAST_ACTION, LAST_STATE, CURRENT_STATE
+        if self.services.goal_tracking.reached_all_goals() and minute_passed(0.5):
+            return None
+
         chosen_action = None
         CURRENT_STATE = self.services.perception.get_state()
         self.update_RMax_dict()
@@ -54,7 +58,6 @@ class RMaxAgent(Executor):
             chosen_action = random.choice(valid_actions)
         LAST_STATE = self.services.perception.get_state()
         LAST_ACTION = chosen_action.split()[0].split('(')[1]
-
         return chosen_action
 
     #######################             R-Max  TABLE  Methods               ################################
@@ -72,6 +75,8 @@ class RMaxAgent(Executor):
                 if len(self.services.valid_actions.provider.parser.actions[action].prob_list) != len(temp_dict.keys()):
                     temp_dict["stay-in-place"] = 0
                 self.actions_options_dict[action] = temp_dict
+
+        self.actions_probability = deepcopy(self.actions_options_dict)
         pass
 
     def update_RMax_dict(self):
@@ -83,26 +88,29 @@ class RMaxAgent(Executor):
         current_state = list(CURRENT_STATE['at'])[0][1]
         last_state = list(LAST_STATE['at'])[0][1]
 
-        action = self.get_action_which_actually_happened( (current_state, last_state) )
-        self.actions_count_dict[last_state] += 1
-        self.actions_options_dict[last_state][action] += 1
-        
-
-
+        action = self.get_action_which_actually_happened( (last_state, current_state) )
+        if action == "pick-food" or LAST_ACTION == "pick-food": return
+        self.actions_count_dict[LAST_ACTION] += 1
+        self.actions_options_dict[LAST_ACTION][action] += 1
+        pass
 
     def update_RMax_file(self):
-        new_dict = {}
-        for action in self.actions_count_dict.keys():
-            action_probability = 0
-            denominator = self.actions_count_dict[action]
-            
-            new_dict[action] = actions_probability
+        self.update_probabilities()
         f = open(policy_file_path, 'w')
-        f.write(str(new_dict))
+        f.write(str(self.actions_probability))
         f.close()
-        pass
-    ####################             R-MAX - LEARNING  Methods               #############################
 
+
+    ####################             R-MAX - LEARNING  Methods               #############################
+    def update_probabilities(self):
+        for action in self.actions_options_dict.items():
+            checked_action = action[0]
+            for checked_direction in action[1]:
+                numerator = self.actions_options_dict[checked_action][checked_direction]
+                denominator = self.actions_count_dict[checked_action]
+                action_probability = division_Action( numerator, denominator)
+                self.actions_probability[checked_action][checked_direction] = action_probability
+        pass
     ##############################             PDDL  Methods               #################################
     def get_agent_location(self):
         state = self.services.perception.get_state()
@@ -116,15 +124,15 @@ class RMaxAgent(Executor):
 
     def get_action_which_actually_happened(self, tuple_state):
         global LAST_STATE, LAST_ACTION
-        happened_act = None
+
         if tuple_state[0] == tuple_state[1]:
             return "stay-in-place"
-        for direction in self.topologic_graph:
-            for checked_tuple in direction:
+        for direction_topologic in self.topologic_graph.items():
+            for checked_tuple in direction_topologic[1]:
                 if checked_tuple == tuple_state:
-                    return direction
-                
-        return happened_act
+                    return direction_topologic[0]
+
+
 
 
 ##############################             HELPER's  Methods               #################################
@@ -144,6 +152,15 @@ def load_dict_from_file():
     data = f.read()
     f.close()
     return eval(data)
+
+def minute_passed( minutes_number):
+    return time.time() - TIMER >= (60 * minutes_number)
+
+def division_Action(numerator, denominator):
+    if denominator == 0:
+        return 0
+    return float(numerator) / float(denominator)
+
 
 if input_flag == "-L":
     print LocalSimulator().run(domain_path, problem_path, RMaxAgent())
