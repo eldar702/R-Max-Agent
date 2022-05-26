@@ -23,10 +23,10 @@ TIMER = time.time()
 ###########################            R-MAX Agent Class              #############################
 #########################################################################################################
 
-class RMaxAgent(Executor):
+class RMaxLearningAgent(Executor):
     ##########################             Init Functions               #################################
     def __init__(self):
-        super(RMaxAgent, self).__init__()
+        super(RMaxLearningAgent, self).__init__()
 
         #self.actions_list, self.states_list, self.actions_idx, self.states_idx = [], [], {}, {}
         self.action_options = ["south", "north", "west", "east"]
@@ -159,11 +159,52 @@ def minute_passed( minutes_number):
 def division_Action(numerator, denominator):
     if denominator == 0:
         return 0
-    return float(numerator) / float(denominator)
+    return float("{:.3f}".format(float(numerator) / float(denominator)))
 
+
+#########################################################################################################
+###########################            QExecutorAgent Class              #############################
+#########################################################################################################
+class RMaxAgent(RMaxLearningAgent):
+    ##########################             Init Functions               #################################
+    def __init__(self):
+        super(RMaxAgent, self).__init__()
+        self.nodes_visited_boolean = {}
+
+    def initialize(self, services):
+        self.services = services
+        self.create_topologic_graph()
+        self.create_nodes_list()
+        self.actions_probability = load_dict_from_file()
+
+
+    def next_action(self):
+        if self.services.goal_tracking.reached_all_goals():
+            return None
+
+        valid_actions = self.services.valid_actions.get()
+
+        if len(valid_actions) == 0:
+            chosen_action = None
+        elif len(valid_actions) == 1:
+            chosen_action = valid_actions[0]
+
+        else:
+            chosen_action = random.choice(valid_actions)
+        LAST_STATE = self.services.perception.get_state()
+        LAST_ACTION = chosen_action.split()[0].split('(')[1]
+        return chosen_action
+
+
+    def create_nodes_list(self):
+        for direction in self.topologic_graph.items():
+            for checked_tuple in direction[1]:
+                for state in checked_tuple:
+                    if state not in self.nodes_visited_boolean:
+                        self.nodes_visited_boolean[state] = False
 
 if input_flag == "-L":
-    print LocalSimulator().run(domain_path, problem_path, RMaxAgent())
+    print LocalSimulator().run(domain_path, problem_path, RMaxLearningAgent())
 
-# elif input_flag == "-E":
-#     print LocalSimulator().run(domain_path, problem_path, CuriousAgent())
+elif input_flag == "-E":
+    print LocalSimulator().run(domain_path, problem_path, RMaxAgent())
