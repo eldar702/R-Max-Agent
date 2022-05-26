@@ -190,10 +190,21 @@ class RMaxAgent(RMaxLearningAgent):
             chosen_action = valid_actions[0]
 
         else:
-            chosen_action = random.choice(valid_actions)
-        LAST_STATE = self.services.perception.get_state()
-        LAST_ACTION = chosen_action.split()[0].split('(')[1]
-        return chosen_action
+            for checked_action in valid_actions:
+                checked_action = checked_action.replace('(', "")
+                checked_action = checked_action.replace(')', "")
+                splited_action = checked_action.split()
+                action_kind = splited_action[0]
+
+                agent_place = splited_action[2]
+                to_where1 = splited_action[3]
+
+                # this is a probabilistic action with different end states (except the same place)
+                if len(splited_action) >= 5:
+                    to_where1 = splited_action[4]
+          #  chosen_action = random.choice(valid_actions)
+
+        return random.choice(valid_actions)
 
 
     def create_nodes_list(self):
