@@ -13,9 +13,10 @@ problem_path = sys.argv[3]
 policy_file_path = sys.argv[4]
 
 # GLOBAL's
+CURRENT_STATE = None
 LAST_STATE = None
 LAST_ACTION = None
-
+COUNTER = 0
 #########################################################################################################
 ###########################            R-MAX Agent Class              #############################
 #########################################################################################################
@@ -28,21 +29,33 @@ class RMaxAgent(Executor):
 
         #self.actions_list, self.states_list, self.actions_idx, self.states_idx = [], [], {}, {}
         self.action_options = ["south", "north", "west", "east"]
-        self.actions_options_dict, self.actions_count_dict = {}, {}
+        self.actions_options_dict, self.actions_count_dict, self.topologic_graph = {}, {}, {}
 
     def initialize(self, services):
         self.services = services
         self.init_RMax_dict()
-
+        self.create_topologic_graph()
+        pass
 
     ##########################              Run Agent Run!                  #################################
     def next_action(self):
-        global LAST_ACTION, LAST_STATE
+        global LAST_ACTION, LAST_STATE, COUNTER, CURRENT_STATE
         chosen_action = None
+        CURRENT_STATE = self.services.perception.get_state()
         self.update_RMax_dict()
         self.update_RMax_file()
 
+        valid_actions = self.services.valid_actions.get()
+        if len(valid_actions) == 0:
+            chosen_action = None
+        elif len(valid_actions) == 1:
+            chosen_action = valid_actions[0]
+        else:
+            chosen_action = random.choice(valid_actions)
+        LAST_STATE = self.services.perception.get_state()
+        LAST_ACTION = chosen_action.split()[0].split('(')[1]
 
+        return chosen_action
 
     #######################             R-Max  TABLE  Methods               ################################
     def init_RMax_dict(self):
@@ -63,21 +76,26 @@ class RMaxAgent(Executor):
 
     def update_RMax_dict(self):
 
-        global LAST_ACTION, LAST_STATE
-        if LAST_STATE is None or LAST_ACTION is None:
+        global LAST_ACTION, LAST_STATE, CURRENT_STATE
+        if LAST_ACTION is None:
             return
-        # reward = self.get_reward(LAST_ACTION)
-        # state_idx, action_idx = self.states_idx[LAST_STATE], self.actions_idx[LAST_ACTION]
 
-        #update the table
+        current_state = list(CURRENT_STATE['at'])[0][1]
+        last_state = list(LAST_STATE['at'])[0][1]
+
+        action = self.get_action_which_actually_happened( (current_state, last_state) )
+        self.actions_count_dict[last_state] += 1
+        self.actions_options_dict[last_state][action] += 1
+        
 
 
 
-    ##############     @@@@@@@@@@@@@@@@@         start from here in the
     def update_RMax_file(self):
         new_dict = {}
         for action in self.actions_count_dict.keys():
-            actions_probability = 0
+            action_probability = 0
+            denominator = self.actions_count_dict[action]
+            
             new_dict[action] = actions_probability
         f = open(policy_file_path, 'w')
         f.write(str(new_dict))
@@ -96,7 +114,26 @@ class RMaxAgent(Executor):
     def is_probabilistic(self, action):
         return hasattr(self.services.valid_actions.provider.parser.actions[action], "prob_list")
 
+    def get_action_which_actually_happened(self, tuple_state):
+        global LAST_STATE, LAST_ACTION
+        happened_act = None
+        if tuple_state[0] == tuple_state[1]:
+            return "stay-in-place"
+        for direction in self.topologic_graph:
+            for checked_tuple in direction:
+                if checked_tuple == tuple_state:
+                    return direction
+                
+        return happened_act
+
+
 ##############################             HELPER's  Methods               #################################
+
+    def create_topologic_graph(self):
+        for name_of_action in self.services.parser.initial_state:
+            if name_of_action in self.action_options:
+                self.topologic_graph[name_of_action] = self.services.parser.initial_state[name_of_action]
+
 def save_dict_to_file(dic):
     f = open(policy_file_path,'w')
     f.write(str(dic))
@@ -107,6 +144,7 @@ def load_dict_from_file():
     data = f.read()
     f.close()
     return eval(data)
+
 if input_flag == "-L":
     print LocalSimulator().run(domain_path, problem_path, RMaxAgent())
 
