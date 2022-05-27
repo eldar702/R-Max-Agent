@@ -137,31 +137,6 @@ class RMaxLearningAgent(Executor):
             if name_of_action in self.action_options:
                 self.topologic_graph[name_of_action] = self.services.parser.initial_state[name_of_action]
 
-def save_dict_to_file(dic):
-    f = open(policy_file_path,'w')
-    f.write(str(dic))
-    f.close()
-
-def load_dict_from_file():
-    f = open(policy_file_path,'r')
-    data = f.read()
-    f.close()
-    return eval(data)
-
-def minute_passed( minutes_number):
-    return time.time() - TIMER >= (60 * minutes_number)
-
-
-def division_Action(numerator, denominator):
-    if denominator == 0:
-        return 0
-    return float("{:.3f}".format(float(numerator) / float(denominator)))
-
-
-def check_direction(action):
-    for direction in ["west", "east", "south", "north"]:
-        if direction in action: return direction
-    return None
 #########################################################################################################
 ###########################            QExecutorAgent Class              #############################
 #########################################################################################################
@@ -232,6 +207,31 @@ class RMaxAgent(RMaxLearningAgent):
                     if state not in self.nodes_visited_boolean:
                         self.nodes_visited_boolean[state] = False
 
+##########################                Helper Functions                  ###############################
+def save_dict_to_file(dic):
+    f = open(policy_file_path,'w')
+    f.write(str(dic))
+    f.close()
+
+def load_dict_from_file():
+    f = open(policy_file_path,'r')
+    data = f.read()
+    f.close()
+    return eval(data)
+
+def minute_passed( minutes_number):
+    return time.time() - TIMER >= (60 * minutes_number)
+
+
+def division_Action(numerator, denominator):
+    if denominator == 0:
+        return 0
+    return float("{:.3f}".format(float(numerator) / float(denominator)))
+
+def check_direction(action):
+    for direction in ["west", "east", "south", "north"]:
+        if direction in action: return direction
+    return None
 
 if input_flag == "-L":
     print LocalSimulator().run(domain_path, problem_path, RMaxLearningAgent())
