@@ -100,7 +100,6 @@ class RMaxLearningAgent(Executor):
         f.write(str(self.actions_probability))
         f.close()
 
-
     ####################             R-MAX - LEARNING  Methods               #############################
     def update_probabilities(self):
         for action in self.actions_options_dict.items():
@@ -131,10 +130,6 @@ class RMaxLearningAgent(Executor):
             for checked_tuple in direction_topologic[1]:
                 if checked_tuple == tuple_state:
                     return direction_topologic[0]
-
-
-
-
 ##############################             HELPER's  Methods               #################################
 
     def create_topologic_graph(self):
@@ -156,12 +151,17 @@ def load_dict_from_file():
 def minute_passed( minutes_number):
     return time.time() - TIMER >= (60 * minutes_number)
 
+
 def division_Action(numerator, denominator):
     if denominator == 0:
         return 0
     return float("{:.3f}".format(float(numerator) / float(denominator)))
 
 
+def check_direction(action):
+    for direction in ["west", "east", "south", "north"]:
+        if direction in action: return direction
+    return None
 #########################################################################################################
 ###########################            QExecutorAgent Class              #############################
 #########################################################################################################
@@ -170,7 +170,7 @@ class RMaxAgent(RMaxLearningAgent):
     def __init__(self):
         super(RMaxAgent, self).__init__()
         self.nodes_visited_boolean = {}
-
+        self.most_curiosity_prob, self.most_curiosity_action = float("-inf"), None
     def initialize(self, services):
         self.services = services
         self.create_topologic_graph()
@@ -183,28 +183,46 @@ class RMaxAgent(RMaxLearningAgent):
             return None
 
         valid_actions = self.services.valid_actions.get()
-
+        agent_location = self.get_agent_location()
+        self.nodes_visited_boolean[agent_location] = True
         if len(valid_actions) == 0:
-            chosen_action = None
-        elif len(valid_actions) == 1:
-            chosen_action = valid_actions[0]
+            return None
+        for act in valid_actions:
+            if "food" in act:
+                return act
+        if len(valid_actions) == 1:
+            return valid_actions[0]
 
         else:
-            for checked_action in valid_actions:
-                checked_action = checked_action.replace('(', "")
+            self.most_curiosity_action, self.most_curiosity_prob = None, float("-inf")
+            for checked_act in valid_actions:
+                checked_action = checked_act.replace('(', "")
                 checked_action = checked_action.replace(')', "")
                 splited_action = checked_action.split()
-                action_kind = splited_action[0]
+                action_kind, agent_place, to_where1 = splited_action[0], splited_action[2], splited_action[3]
+                self.check_who_is_bigger(checked_act, action_kind, to_where1)
+                if len(splited_action) >= 5:  # check if is a prob act with different end states (except the same place)
+                    to_where2 = splited_action[4]
+                    self.check_who_is_bigger(checked_act, action_kind, to_where2, False)
+            if self.most_curiosity_action is None:
+                return random.choice(valid_actions)
 
-                agent_place = splited_action[2]
-                to_where1 = splited_action[3]
+            return self.most_curiosity_action
 
-                # this is a probabilistic action with different end states (except the same place)
-                if len(splited_action) >= 5:
-                    to_where1 = splited_action[4]
-          #  chosen_action = random.choice(valid_actions)
+    def check_who_is_bigger(self, checked_act, action_kind, place, is_major=True):
+        if self.nodes_visited_boolean[place]:
+            checked_prob = self.what_the_probability(action_kind, is_major)
+            if checked_prob > self.most_curiosity_prob:
+                self.most_curiosity_prob = checked_prob
+                self.most_curiosity_action = checked_act
 
-        return random.choice(valid_actions)
+    def what_the_probability(self, action_kind, is_major):
+        direction = check_direction(action_kind)
+        probability = self.actions_probability[action_kind][direction]
+        if is_major:
+            return probability
+        else:
+            return 1 - probability
 
 
     def create_nodes_list(self):
@@ -213,6 +231,7 @@ class RMaxAgent(RMaxLearningAgent):
                 for state in checked_tuple:
                     if state not in self.nodes_visited_boolean:
                         self.nodes_visited_boolean[state] = False
+
 
 if input_flag == "-L":
     print LocalSimulator().run(domain_path, problem_path, RMaxLearningAgent())
