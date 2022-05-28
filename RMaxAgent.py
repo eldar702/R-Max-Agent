@@ -1,10 +1,8 @@
+##############################            Imports & Globals              #################################
 import random
 import sys
 import time
 from copy import deepcopy
-import numpy as np
-import os.path
-##############################            Imports & Globals              #################################
 from pddlsim.executors.executor import Executor
 from pddlsim.local_simulator import LocalSimulator
 
@@ -19,6 +17,7 @@ CURRENT_STATE = None
 LAST_STATE = None
 LAST_ACTION = None
 TIMER = time.time()
+COUNTER = 0
 #########################################################################################################
 ###########################            R-MAX Agent Class              #############################
 #########################################################################################################
@@ -162,15 +161,13 @@ class RMaxAgent(RMaxLearningAgent):
         self.nodes_visited_boolean[agent_location] = True
         if len(valid_actions) == 0:
             return None
-        for act in valid_actions:
-            if "food" in act:
-                return act
         if len(valid_actions) == 1:
             return valid_actions[0]
 
         else:
             self.most_curiosity_action, self.most_curiosity_prob = None, float("-inf")
             for checked_act in valid_actions:
+                if "food" in checked_act: return checked_act
                 checked_action = checked_act.replace('(', "")
                 checked_action = checked_action.replace(')', "")
                 splited_action = checked_action.split()
@@ -185,7 +182,7 @@ class RMaxAgent(RMaxLearningAgent):
             return self.most_curiosity_action
 
     def check_who_is_bigger(self, checked_act, action_kind, place, is_major=True):
-        if self.nodes_visited_boolean[place]:
+        if not self.nodes_visited_boolean[place]:
             checked_prob = self.what_the_probability(action_kind, is_major)
             if checked_prob > self.most_curiosity_prob:
                 self.most_curiosity_prob = checked_prob
@@ -233,6 +230,8 @@ def check_direction(action):
         if direction in action: return direction
     return None
 
+
+#############################              Start Flags              ###################################
 if input_flag == "-L":
     print LocalSimulator().run(domain_path, problem_path, RMaxLearningAgent())
 
